@@ -21,8 +21,21 @@ document.getElementById('restoreFile').addEventListener('change',async e=>{const
 const SUPABASE_URL='https://drklyxisssdtjuzuhbib.supabase.co';
 const SUPABASE_KEY='sb_publishable_D7Z_ClKgvhGcOg2heM4eoA_w-VZPzwQ';
 const syncState={client:null,user:null,ready:false,busy:false,pending:false,lastError:'',lastSync:'',initialized:false};
-const originalSave=save;
-function save(){const ok=originalSave();if(ok&&syncState.ready&&syncState.user){syncState.pending=true;scheduleSync()}return ok}
+function save(){
+  try {
+    localStorage.setItem(KEY, JSON.stringify(db));
+  } catch(e) {
+    alert('Enregistrement impossible : stockage indisponible ou plein. Exportez vos données.');
+    return false;
+  }
+
+  if(syncState.ready && syncState.user){
+    syncState.pending = true;
+    scheduleSync();
+  }
+
+  return true;
+}
 let syncTimer=null;
 function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>pushRemote().catch(syncFailure),650)}
 function syncFailure(err){syncState.lastError=err?.message||String(err);syncState.pending=true;syncState.busy=false;console.error('Synchronisation Céliflor :',err);if(view==='more')render()}
