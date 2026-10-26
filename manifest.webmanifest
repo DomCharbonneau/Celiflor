@@ -1,0 +1,19 @@
+
+{
+  "name": "Céliflor",
+  "short_name": "Céliflor",
+  "description": "Gestion de rucher et suivi apicole",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f3e8",
+  "theme_color": "#a87521",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
