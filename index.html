@@ -51,11 +51,11 @@ async function firstSync(mode){if(syncState.busy)return;syncState.busy=true;try{
   if(remoteCount&&!confirm('Le nuage contient deja '+remoteCount+' elements. Fusionner les donnees locales avec celles du nuage?'))return;
   // Conserver les entrees existantes distantes, et donner priorite aux modifications locales avec le meme identifiant.
   for(const k of ['hives','inspections','tasks']){const merged=new Map(remote[k].map(x=>[x.id,x]));for(const x of db[k])merged.set(x.id,x);db[k]=[...merged.values()]}
-  originalSave();syncState.ready=true;syncState.pending=true;syncState.busy=false;await pushRemote();
+  baseSave();syncState.ready=true;syncState.pending=true;syncState.busy=false;await pushRemote();
  }else{
   if(!remoteCount){alert('Le nuage est vide. Utilise plutot Importer les donnees de cet appareil depuis ton iPhone.');return}
   if(!confirm('Remplacer les donnees locales de cet appareil par les donnees du nuage? Fais une sauvegarde JSON avant de continuer.'))return;
-  db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};await loadModulesFromCloud('replace');originalSave();syncState.ready=true;syncState.pending=false;
+  db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};await loadModulesFromCloud('replace');baseSave();syncState.ready=true;syncState.pending=false;
  }
  syncState.initialized=true;render();
  }catch(e){syncFailure(e);alert('Synchronisation impossible : '+e.message)}finally{syncState.busy=false}}
@@ -71,7 +71,7 @@ async function pushRemote(){if(!syncState.ready||!syncState.user||syncState.busy
  }
  syncState.pending=false;syncState.lastSync=new Date().toLocaleString('fr-CA');
  }catch(e){syncFailure(e);throw e}finally{syncState.busy=false;if(view==='more')render()}}
-async function pullRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;if(syncState.pending){alert('Des modifications locales sont en attente. Synchronise-les avant d’actualiser.');return}syncState.busy=true;try{const remote=await remoteData();await loadModulesFromCloud('replace');db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};originalSave();syncState.lastSync=new Date().toLocaleString('fr-CA');render()}finally{syncState.busy=false}}
+async function pullRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;if(syncState.pending){alert('Des modifications locales sont en attente. Synchronise-les avant d’actualiser.');return}syncState.busy=true;try{const remote=await remoteData();await loadModulesFromCloud('replace');db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};baseSave();syncState.lastSync=new Date().toLocaleString('fr-CA');render()}finally{syncState.busy=false}}
 async function initCloud(){try{
  const mod=await import('https://esm.sh/@supabase/supabase-js@2.57.0');syncState.client=mod.createClient(SUPABASE_URL,SUPABASE_KEY);
  const {data}=await syncState.client.auth.getUser();syncState.user=data.user;
