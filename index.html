@@ -78,7 +78,7 @@ async function pushRemote(){if(!syncState.ready||!syncState.user||syncState.busy
 async function pullRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;if(syncState.pending){alert('Des modifications locales sont en attente. Synchronise-les avant d’actualiser.');return}syncState.busy=true;try{const remote=await remoteData();await loadModulesFromCloud('replace');db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};baseSave();rememberSync();syncState.lastSync=new Date().toLocaleString('fr-CA');render()}finally{syncState.busy=false}}
 async function initCloud(){try{
  const mod=await import('https://esm.sh/@supabase/supabase-js@2.57.0');syncState.client=mod.createClient(SUPABASE_URL,SUPABASE_KEY);
- const {data}=await syncState.client.auth.getUser();syncState.user=data.user;
+ const {data}=await syncState.client.auth.getUser();syncState.user=data.user;restoreSync();
  // Reconnexion prudente : ne pas remplacer automatiquement les donnees locales.
  syncState.client.auth.onAuthStateChange((_event,session)=>{if(session?.user?.id!==syncState.user?.id){syncState.user=session?.user||null;restoreSync();render()}});
  render();
