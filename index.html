@@ -23,6 +23,10 @@ const SUPABASE_KEY='sb_publishable_D7Z_ClKgvhGcOg2heM4eoA_w-VZPzwQ';
 const syncState={client:null,user:null,ready:false,busy:false,pending:false,lastError:'',lastSync:'',initialized:false};
 
 function save(){const ok=baseSave();if(ok&&syncState.ready&&syncState.user){syncState.pending=true;scheduleSync()}return ok}
+// Mémorise la première synchronisation pour ce navigateur et ce compte seulement.
+const syncMarkerKey=userId=>'celiflor_v03_sync_ready_'+userId;
+function rememberSync(){if(syncState.user&&syncState.ready){try{localStorage.setItem(syncMarkerKey(syncState.user.id),'1')}catch(e){console.warn('État de synchronisation non mémorisé',e)}}}
+function restoreSync(){syncState.ready=false;syncState.pending=false;if(!syncState.user)return;try{syncState.ready=localStorage.getItem(syncMarkerKey(syncState.user.id))==='1'}catch(e){syncState.ready=false}}
 let syncTimer=null;
 function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>pushRemote().catch(syncFailure),650)}
 function syncFailure(err){syncState.lastError=err?.message||String(err);syncState.pending=true;syncState.busy=false;console.error('Synchronisation Céliflor :',err);if(view==='more')render()}
@@ -35,7 +39,7 @@ function syncPanelHTML(){const st=syncState;
 async function submitAuth(e){e.preventDefault();const form=e.target;const button=e.submitter;const action=button?.value||'signin';const email=form.elements.email.value.trim(),password=form.elements.password.value;
  const {data,error}=action==='signup'?await syncState.client.auth.signUp({email,password}):await syncState.client.auth.signInWithPassword({email,password});
  if(error){alert('Connexion : '+error.message);return}if(action==='signup'&&!data.session){alert('Verifie ton courriel pour confirmer ton compte, puis connecte-toi.');return}
- syncState.user=data.user;syncState.ready=false;render();}
+ syncState.user=data.user;restoreSync();render();}
 async function signOut(){if(syncState.pending&&!confirm('Des modifications ne sont peut-etre pas synchronisees. Se deconnecter?'))return;await syncState.client.auth.signOut();syncState.user=null;syncState.ready=false;syncState.pending=false;render()}
 function hiveToRow(h){return {id:h.id,utilisateur_id:syncState.user.id,nom:h.name,emplacement:h.location||null,reine:h.queen||null,notes:h.notes||null,donnees_originales:h}}
 function inspectionToRow(i){return {id:i.id,utilisateur_id:syncState.user.id,ruche_id:i.hiveId,date_inspection:i.date,reine:i.queen||null,force_colonie:i.strength||null,couvain:i.brood||null,reserves:i.food||null,etat_sanitaire:i.health||null,notes:i.notes||null,donnees_originales:i}}
@@ -57,7 +61,7 @@ async function firstSync(mode){if(syncState.busy)return;syncState.busy=true;try{
   if(!confirm('Remplacer les donnees locales de cet appareil par les donnees du nuage? Fais une sauvegarde JSON avant de continuer.'))return;
   db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};await loadModulesFromCloud('replace');baseSave();syncState.ready=true;syncState.pending=false;
  }
- syncState.initialized=true;render();
+ syncState.initialized=true;rememberSync();render();
  }catch(e){syncFailure(e);alert('Synchronisation impossible : '+e.message)}finally{syncState.busy=false}}
 async function pushRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;syncState.busy=true;syncState.lastError='';try{
  for(const [table,rows,mapper] of [['ruches',db.hives,hiveToRow],['inspections',db.inspections,inspectionToRow],['taches',db.tasks,taskToRow]]){
@@ -71,16 +75,16 @@ async function pushRemote(){if(!syncState.ready||!syncState.user||syncState.busy
  }
  syncState.pending=false;syncState.lastSync=new Date().toLocaleString('fr-CA');
  }catch(e){syncFailure(e);throw e}finally{syncState.busy=false;if(view==='more')render()}}
-async function pullRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;if(syncState.pending){alert('Des modifications locales sont en attente. Synchronise-les avant d’actualiser.');return}syncState.busy=true;try{const remote=await remoteData();await loadModulesFromCloud('replace');db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};baseSave();syncState.lastSync=new Date().toLocaleString('fr-CA');render()}finally{syncState.busy=false}}
+async function pullRemote(){if(!syncState.ready||!syncState.user||syncState.busy)return;if(syncState.pending){alert('Des modifications locales sont en attente. Synchronise-les avant d’actualiser.');return}syncState.busy=true;try{const remote=await remoteData();await loadModulesFromCloud('replace');db={...db,version:1,...remote,generatedYears:[...new Set(remote.tasks.filter(x=>x.auto).map(x=>Number(x.date.slice(0,4))))]};baseSave();rememberSync();syncState.lastSync=new Date().toLocaleString('fr-CA');render()}finally{syncState.busy=false}}
 async function initCloud(){try{
  const mod=await import('https://esm.sh/@supabase/supabase-js@2.57.0');syncState.client=mod.createClient(SUPABASE_URL,SUPABASE_KEY);
  const {data}=await syncState.client.auth.getUser();syncState.user=data.user;
  // Reconnexion prudente : ne pas remplacer automatiquement les donnees locales.
- syncState.client.auth.onAuthStateChange((_event,session)=>{if(session?.user?.id!==syncState.user?.id){syncState.user=session?.user||null;syncState.ready=false;render()}});
+ syncState.client.auth.onAuthStateChange((_event,session)=>{if(session?.user?.id!==syncState.user?.id){syncState.user=session?.user||null;restoreSync();render()}});
  render();
  }catch(e){syncState.lastError=e.message;console.error('Supabase non disponible',e);render()}}
 window.addEventListener('online',()=>{if(syncState.ready&&syncState.pending)scheduleSync()});
-window.addEventListener('focus',()=>{if(syncState.ready&&!syncState.pending)pullRemote().catch(syncFailure)});
+// Pas de récupération automatique au retour de fenêtre : évite d'écraser des modifications locales hors ligne.
 initCloud();
 
 
